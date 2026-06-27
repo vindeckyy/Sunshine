@@ -90,7 +90,7 @@ TEST(SolarflareBuildDrmCherryPick, DrmBlocksNestedInEnableDrm) {
     }
     const size_t window_start = (pos >= 200) ? pos - 200 : 0;
     const std::string window = content.substr(window_start, pos - window_start);
-    if (window.find("if(SUNSHINE_ENABLE_DRM)") == std::string::npos) {
+    if (window.find("if(${SUNSHINE_ENABLE_DRM})") == std::string::npos) {
       return ::testing::AssertionFailure()
         << marker_desc << " ('" << marker
         << "') is not nested inside an 'if(SUNSHINE_ENABLE_DRM)' "
