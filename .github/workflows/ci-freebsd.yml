@@ -74,7 +74,7 @@ jobs:
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           submodules: recursive
 
@@ -87,7 +87,7 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@bac9cda6a14057f08e3793f6a5e037292b59868f  # v1.4.7
+        uses: vmactions/freebsd-vm@b84ab5559b5a1bb4b8ee2737d2506a16e1737636  # v1.4.8
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
@@ -143,10 +143,7 @@ jobs:
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
-            uv sync --locked --only-group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
-              --no-python-downloads --no-install-project
-            uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
-              --python "/usr/local/bin/python${PYTHON_VERSION}" \
+            uv sync --locked --group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
               --no-python-downloads --no-install-project
 
             # fix git safe.directory issues
@@ -259,7 +256,7 @@ jobs:
         shell: freebsd {0}
         run: |
           cd "${GITHUB_WORKSPACE}/build"
-          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
+          uv run --project .. --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
