@@ -1,9 +1,14 @@
 ---
-# This workflow is centrally managed in https://github.com/LizardByte/.github/
-# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
-# the above-mentioned repo.
-
-# Create a blog post for a new release and open a PR to the blog repo
+# SolarFlare fork override for the centrally-managed _release-notifier
+# workflow.
+#
+# The upstream file calls LizardByte/.github/.github/workflows/... and is
+# gated by 'if: github.repository_owner == LizardByte'. On this fork the
+# owner is 'vindeckyy', so every release triggers a "skipped" run.
+# We replace the file with a no-op workflow so the Actions tab stays
+# clean. If LizardByte ever publishes a fork-friendly version, this
+# override should be deleted and the upstream file restored via
+# `git checkout lizardbyte-upstream/master -- .github/workflows/_release-notifier.yml`.
 
 name: Release Notifications
 permissions: {}
@@ -12,16 +17,21 @@ on:
   release:
     types:
       - released  # this triggers when a release is published, but does not include pre-releases or drafts
+  workflow_dispatch:
+
+concurrency:
+  group: 'release-notifier'
+  cancel-in-progress: true
 
 jobs:
   update-blog:
-    name: Update blog
-    uses: LizardByte/.github/.github/workflows/__call-release-notifier.yml@master
-    if: github.repository_owner == 'LizardByte'
-    permissions:
-      contents: read
-    with:
-      gh_name: ${{ vars.GH_BOT_NAME }}
-    secrets:
-      GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+    name: Update blog (no-op on fork)
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: |
+          echo "SolarFlare fork does not run upstream's Release Notifications."
+          echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
+          echo "The fork's release announcements live in CHANGELOG-SolarFlare.md;"
+          echo "we do not push blog posts to a LizardByte-only blog repo."
+          echo "This workflow is intentionally disabled. See the file's header comment."
