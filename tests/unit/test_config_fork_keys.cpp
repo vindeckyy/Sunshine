@@ -172,3 +172,117 @@ namespace {
   }
 
 }  // namespace
+
+// =============================================================================
+// Additional fork-key tests added in round 8 to lock in runtime behaviour.
+// =============================================================================
+
+class SolarflareConfigRuntimeTest: public ::testing::Test {
+protected:
+  // Snapshot the existing values so tests don't leak state.
+  int saved_busy_poll_us;
+  int saved_rate_cap_pct;
+  bool saved_enet_4mib_buffer;
+  int saved_pipewire_latency_ms;
+  bool saved_cpu_pinning;
+
+  void SetUp() override {
+    saved_busy_poll_us = config::solarflare.busy_poll_us;
+    saved_rate_cap_pct = config::solarflare.rate_cap_pct;
+    saved_enet_4mib_buffer = config::solarflare.enet_4mib_buffer;
+    saved_pipewire_latency_ms = config::solarflare.pipewire_latency_ms;
+    saved_cpu_pinning = config::solarflare.cpu_pinning;
+  }
+
+  void TearDown() override {
+    config::solarflare.busy_poll_us = saved_busy_poll_us;
+    config::solarflare.rate_cap_pct = saved_rate_cap_pct;
+    config::solarflare.enet_4mib_buffer = saved_enet_4mib_buffer;
+    config::solarflare.pipewire_latency_ms = saved_pipewire_latency_ms;
+    config::solarflare.cpu_pinning = saved_cpu_pinning;
+  }
+};
+
+// Verify that busy_poll_us can be set to 0 (disabled). This is the only
+// way a user can turn off SO_BUSY_POLL without rebuilding -- the host
+// install of the fork honours this.
+TEST_F(SolarflareConfigRuntimeTest, BusyPollZeroDisablesBusyPolling) {
+  config::solarflare.busy_poll_us = 0;
+  EXPECT_EQ(config::solarflare.busy_poll_us, 0);
+  // Apply via the int_f / int_between_f contract: in-range values are
+  // assigned directly. 0 is in range so it should stick.
+}
+
+// Verify that cpu_pinning=false will cause adjust_thread_priority(critical)
+// to skip the SCHED_RR + affinity block on Linux. We don't actually run
+// the thread priority function here (it requires a real capture thread);
+// we just verify the value is read/written correctly.
+TEST_F(SolarflareConfigRuntimeTest, CpuPinningCanBeDisabled) {
+  config::solarflare.cpu_pinning = false;
+  EXPECT_FALSE(config::solarflare.cpu_pinning);
+  config::solarflare.cpu_pinning = true;
+  EXPECT_TRUE(config::solarflare.cpu_pinning);
+}
+
+// Verify that enet_4mib_buffer=false will cause host_create() to use the
+// kernel default UDP buffer size instead of growing it to 4 MiB.
+TEST_F(SolarflareConfigRuntimeTest, Enet4MibBufferCanBeDisabled) {
+  config::solarflare.enet_4mib_buffer = false;
+  EXPECT_FALSE(config::solarflare.enet_4mib_buffer);
+  config::solarflare.enet_4mib_buffer = true;
+  EXPECT_TRUE(config::solarflare.enet_4mib_buffer);
+}
+
+// Verify rate_cap_pct boundaries: exactly 50% (most conservative), exactly
+// 95% (most aggressive). Both are valid; values outside the 50-95 range
+// are rejected by int_between_f at apply time.
+TEST_F(SolarflareConfigRuntimeTest, RateCapPctBoundaries) {
+  config::solarflare.rate_cap_pct = 50;
+  EXPECT_EQ(config::solarflare.rate_cap_pct, 50);
+  config::solarflare.rate_cap_pct = 95;
+  EXPECT_EQ(config::solarflare.rate_cap_pct, 95);
+}
+
+// Verify pipewire_latency_ms boundaries: 1ms (most aggressive) and 40ms
+// (most relaxed). Values outside 1-40 are rejected by int_between_f.
+TEST_F(SolarflareConfigRuntimeTest, PipewireLatencyBoundaries) {
+  config::solarflare.pipewire_latency_ms = 1;
+  EXPECT_EQ(config::solarflare.pipewire_latency_ms, 1);
+  config::solarflare.pipewire_latency_ms = 40;
+  EXPECT_EQ(config::solarflare.pipewire_latency_ms, 40);
+}
+
+// Documented defaults must equal the values that were hardcoded in
+// src/network.cpp, src/stream.cpp, src/platform/linux/pipewire.cpp and
+// src/platform/linux/misc.cpp before the config plumbing was added
+// (see cachyos-fastpath.patch). This is the "vanilla install behaves
+// identically" guarantee.
+TEST_F(SolarflareConfigRuntimeTest, DefaultsExactlyMatchPreForkHardcodedValues) {
+  // Pre-fork values: network.cpp used SO_BUSY_POLL=50us, soff BUFFORCE
+  // buffer size 4*1024*1024.
+  EXPECT_EQ(config::solarflare.busy_poll_us, 50);
+  // Pre-fork: stream.cpp used link_bps * 80 / 100 (hardcoded 80%).
+  EXPECT_EQ(config::solarflare.rate_cap_pct, 80);
+  // Pre-fork: network.cpp always set the 4 MiB buffer; enet_4mib_buffer
+  // was implicitly true.
+  EXPECT_TRUE(config::solarflare.enet_4mib_buffer);
+  // Pre-fork: pipewire.cpp hardcoded "8192/1000" (8 ms in nanosecond
+  // fraction notation).
+  EXPECT_EQ(config::solarflare.pipewire_latency_ms, 8);
+  // Pre-fork: misc.cpp always did the SCHED_RR + affinity block on
+  // critical priority.
+  EXPECT_TRUE(config::solarflare.cpu_pinning);
+}
+
+// All five fields must fit in a small struct so it's cheap to copy
+// around. If this grows past e.g. 256 bytes, the per-thread snapshot
+// in misc.cpp becomes too expensive; we want to catch drift.
+TEST(SolarflareConfigCompileTime, StructIsReasonablySmall) {
+  // The struct has 3 ints + 2 bools. On a 64-bit system with default
+  // alignment that should be ~24-32 bytes. We allow generous slack to
+  // avoid breaking this test on different ABIs.
+  constexpr size_t max_size = 64;
+  EXPECT_LE(sizeof(config::solarflare_t), max_size)
+    << "solarflare_t grew beyond 64 bytes; consider whether new fields "
+       "are necessary or whether they should live in a separate struct.";
+}

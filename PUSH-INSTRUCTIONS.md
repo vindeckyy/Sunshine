@@ -32,7 +32,7 @@ CMake variable, every Linux-only block is `#ifdef __linux__`-guarded.
 | PipeWire             | `PW_KEY_NODE_LATENCY = 8.192 ms` (default ~20–40 ms)                                     | 1–2 fewer frames of compositor-side buffering |
 | Upstream bugs        | Add missing `<array>` and `<span>` includes in `config.h` and `misc.cpp`                | Sunshine won't compile on clean GCC 13+/CachyOS toolchains without these |
 
-## Files in `cachyos-fastpath.patch` (7 files, ~+414 / -11 lines)
+## Files in `cachyos-fastpath.patch` (7 files, ~+426 / -22 lines)
 
 ```
 cmake/compile_definitions/common.cmake | CachyOS native flags + SolarFlare branding macro
@@ -49,9 +49,18 @@ upstream base commit `1fce18d9`, i.e. it includes the original
 cachyos-fastpath commit (`bbcd69b2`) **plus** the round of work that
 wired the 5 fork tunables (`busy_poll_us`, `rate_cap_pct`,
 `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`) through the
-standard Sunshine config plumbing **plus** the two cherry-picked
-upstream commits that touched the same files
-(`07317293 fix(input)`, `4e6e137796 feat(linux/pipewire)`).
+standard Sunshine config plumbing **plus** the four cherry-picked
+upstream commits that touched the same files:
+
+- `07317293 fix(input): don't send ALT when right-alt is remapped to meta`
+- `4e6e137796 feat(linux/pipewire): add fallback to node id if connection via object serial fails`
+- `a84735d1 fix(web-ui): don't open ui automatically on app start`
+- `e40d355f fix(video): fix video stream freezing on capture re-init`
+
+(Note: a fifth cherry-pick, `3266c341 feat(web-ui): UI consistency /
+layout uplifts`, was also merged onto the fork but it touched web UI
+files that aren't in the 7-file patch list, so it doesn't show up in
+the regenerated patch.)
 
 It can be regenerated at any time with:
 
