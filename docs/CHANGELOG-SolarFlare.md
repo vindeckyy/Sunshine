@@ -237,6 +237,35 @@ Total upstream cherry-picks integrated across all 16 rounds: 23
 (22 safe + 1 selective from rounds 15+16). The doxygen cherry-pick
 on C++ source files is no longer being attempted; the rationale is
 documented in this section and in the round 1-3 entries.
+### Rounds 25-30 (regression-test avalanche)
+
+The remaining rounds after round 24 added regression-guard tests for
+several of the cherry-picks that landed across rounds 3-7. Each
+regression test is a build-time assertion that the relevant code
+pattern is still in place, so a future commit that accidentally
+reverts a cherry-pick fails the test on the next build with a
+clear error message pointing at the original cherry-pick.
+
+Tests added (6 new files, all in tests/unit/):
+
+| Round | Test file | Cherry-pick guarded |
+|---|---|---|
+| 25 | test_solarflare_fdf13632_cherrypick.cpp | fdf13632 feat(linux/kwin): log object serial |
+| 26 | test_solarflare_a84735d1_cherrypick.cpp | a84735d1 fix(web-ui): don't open ui on app start |
+| 27 | test_solarflare_2c59b2e6_cherrypick.cpp | 2c59b2e6 fix(crypto): OpenSSL 4.x compat |
+| 28 | test_solarflare_4e6e1377_cherrypick.cpp | 4e6e1377 feat(linux/pipewire): node id fallback |
+| 29 | test_solarflare_2438a9bd_cherrypick.cpp | 2438a9bd feat(linux/xdgportal): pipewire-serial support |
+| 30 | test_solarflare_a3552a43_cherrypick.cpp | a3552a43 build(deps): Linux DRM build fix |
+
+Rounds 26-30 also debugged the a3552a43 test (literal vs variable
+form, then 200-byte window right at the boundary for the kmsgrab.cpp
+marker; fixed by widening to 400 bytes). The actual cmake / source
+code was never broken; only the test matchers were wrong.
+
+Final fork state: 54 commits + 1 fork-specific release tag,
+375 tests, 370 passing (up from 322 at session start; +48), 10
+LizardByte-pinned workflows overridden, 23 upstream commits
+integrated, 0 open Dependabot alerts.
 
 ## See also
 
