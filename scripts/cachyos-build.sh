@@ -179,7 +179,7 @@ else
             libevdev opus ffmpeg \
             libpipewire libportal \
             wayland wayland-protocols \
-            libudev libcap libnatpmp \
+            systemd-libs libcap libnatpmp \
             vulkan-headers shaderc glslang \
             boost miniupnpc nlohmann-json \
             libpng libxext libxtst nodejs npm; then
