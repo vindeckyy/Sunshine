@@ -1235,6 +1235,15 @@ namespace video {
       if (config::solarflare.headless_virtual_display) {
         BOOST_LOG(info) << "No displays found; attempting virtual display creation"sv;
         (void) std::system("xrandr --output VIRTUAL1 --auto 2>/dev/null");
+        // If running under wlroots (Sway, Hyprland, etc.), suggest the
+        // headless outputs env var that wlroots compositors support natively.
+        auto *wayland_display = std::getenv("WAYLAND_DISPLAY");
+        if (wayland_display && !std::getenv("WLR_HEADLESS_OUTPUTS")) {
+          BOOST_LOG(warning) << "No displays found under Wayland ("
+                             << wayland_display << ")."sv;
+          BOOST_LOG(warning) << "Set WLR_HEADLESS_OUTPUTS=1 before starting "
+                                "Sway/Hyprland to create a virtual output."sv;
+        }
         // Re-enumerate after creating virtual output
         display_names = platf::display_names(dev_type);
       }
