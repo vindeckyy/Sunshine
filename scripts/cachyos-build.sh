@@ -308,6 +308,24 @@ say "Build: ✓"
 # ---------------------------------------------------------------------------
 step "7/7  Install + verification"
 say "sudo cmake --install build..."
+
+# If a previous install (e.g. from a distro package) set the immutable
+# flag on any install-path file, cmake --install will fail with
+# "Operation not permitted". Remove the flag before installing.
+install_prefix="$(cmake -LA "$BUILD_DIR" 2>/dev/null | grep CMAKE_INSTALL_PREFIX | cut -d= -f2)"
+if [[ -n "$install_prefix" && -d "$install_prefix" ]]; then
+  say "Checking for immutable files under $install_prefix..."
+  if command -v lsattr &>/dev/null; then
+    immutable_files=$(sudo lsattr -R "$install_prefix" 2>/dev/null | grep '^....i' | sed 's/ *$//' || true)
+    if [[ -n "$immutable_files" ]]; then
+      warn "Found immutable files left over from a previous package install:"
+      echo "$immutable_files" >&2
+      say "Removing immutable flag (sudo chattr -R -i)..."
+      sudo chattr -R -i "$install_prefix" 2>/dev/null || true
+    fi
+  fi
+fi
+
 set +e
 sudo cmake --install "$BUILD_DIR"
 install_rc=$?
