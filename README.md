@@ -107,44 +107,48 @@ Full rationale, defaults, ranges, and measurement methodology: [`docs/CONFIGURAT
 
 Four low-overhead features — minimal code, measurable wins, Linux-first.
 
-#### 🏷️ Per-game NVENC presets
+| Key | Default | What it does |
+|-----|--------:|---------------|
+| `"encoder-preset"` in `apps.json` | absent | Per-app NVENC preset override: `0`=latency, `1`=balanced, `2`=quality. Restored on disconnect. |
+| `dscp_qos` | `true` | `setsockopt(IP_TOS, CS3)` — routers prioritize streaming packets over bulk LAN traffic. |
+| `gpu_governor` | `true` | AMD GPU → `performance` during stream, `auto` on stop. Silently no-ops on NVIDIA/Intel. |
+| `headless_virtual_display` | `false` | If no display found, attempts `xrandr --output VIRTUAL1 --auto`. Opt-in. |
 
-Add an optional `"encoder-preset"` field to any app in `apps.json`:
+- **Tests**: 406/412 pass, 5 skipped (pre-existing), 1 pre-existing config-doc gap inherited from fork
+- **Commits**: `8ff31cb3` → `da1808ae`
 
-```json
-{
-  "name": "CS2",
-  "cmd": "steam steam://rungameid/730",
-  "encoder-preset": 0
-}
-```
+### 2026-06 — NVENC tuning presets
 
-| Value | Preset | Best for |
-|------:|--------|----------|
-| `-1` or absent | Use global `nvenc_tuning_preset` from `sunshine.conf` (default) | — |
-| `0` | Latency-optimised (P1, no B-frames, zero-latency, no lookahead) | CS2, VALORANT, reflex games |
-| `1` | Balanced (P4, 2 B-frames, 20-frame lookahead, AQ) | AAA single-player |
-| `2` | Quality-optimised (P7, 4 B-frames, 40-frame lookahead, full two-pass, min-QP) | Cinematic / slow-paced |
+10 new NVENC knobs + 3 one-click presets exposed in the Web UI and config file:
 
-The override applies at session start and the global preset is restored on disconnect. No Web UI changes — edit `apps.json` directly.
+| Preset | Value | Behaviour |
+|--------|------:|-----------|
+| Manual | −1 | Don't touch individual knobs |
+| Latency-optimised | 0 | P1, bframes=0, zerolatency, lookahead=0 |
+| Balanced | 1 | P4, bframes=2, lookahead=20, AQ on |
+| Quality-optimised | 2 | P7, bframes=4, lookahead=40, full twopass, min-QP |
 
-#### 🏷️ DSCP QoS tagging (`dscp_qos = true`)
+Plus: weighted prediction, filler data, per-codec min-QP, temporal AQ, AQ strength, encode surfaces, rc-lookahead. 8 new tests (`test_config_nvenc_keys.cpp`).
 
-One `setsockopt(IP_TOS, CS3)` on the ENet streaming socket. Routers that honour DSCP will prioritize SolarFlare's UDP stream over bulk LAN traffic (file transfers, Steam downloads). Disable with `dscp_qos = false` in `sunshine.conf`.
+### 2026-06 — SolarFlare audio FX pipeline
 
-#### 🏷️ GPU frequency governor (`gpu_governor = true`)
+Pre-encoder DSP chain (AGC, VAD, ducker, noise gate) + Opus encoder tuning (application mode, VBR, FEC, complexity, bandwidth extension). All off by default — vanilla install is bit-identical to upstream. 14 tuning knobs.
 
-On AMD GPUs, writes `performance` to `/sys/class/drm/card*/device/power_dpm_force_performance_level` when streaming starts and `auto` when it stops. Prevents the GPU from clocking down between frames at high FPS. Silently no-ops on NVIDIA/Intel. Disable with `gpu_governor = false`.
+### 2026-06 — Initial fork & 5 Linux tunables
 
-#### 🏷️ Headless virtual display (`headless_virtual_display = false`)
+Forked from LizardByte/Sunshine `1fce18d9`. Five Linux-only runtime tunables exposed via `sunshine.conf`:
 
-Opt-in. When enabled and no physical display is detected, SolarFlare attempts `xrandr --output VIRTUAL1 --auto` then re-enumerates displays. Requires the xrandr dummy driver to be pre-configured (`xserver-xorg-video-dummy` or equivalent). Enable with `headless_virtual_display = true`.
+| Key | Default | What it does |
+|-----|--------:|---------------|
+| `rate_cap_pct` | 80 | Link-speed-aware pacer cap (50–95%) |
+| `busy_poll_us` | 50 | `SO_BUSY_POLL` on ENet socket (0–10000 µs) |
+| `pipewire_latency_ms` | 8 | `PW_KEY_NODE_LATENCY` hint (1–40 ms) |
+| `cpu_pinning` | true | `SCHED_RR` + physical-core affinity |
+| `enet_4mib_buffer` | true | 4 MiB UDP socket buffers |
 
-#### 📊 Test results
+Plus: Zen 1/2/3/4 auto-detect build flags (`-march=znverN -flto -O3 -fno-plt`), CachyOS-native multi-distro build script, fork-specific CI workflow, Web UI rebrand, 23 upstream cherry-picks integrated, 59 commits since fork base.
 
-- **Build**: clean on `-std=gnu++23` with `-march=x86-64-v3`
-- **Tests**: 406/412 pass, 5 skipped (pre-existing), 1 pre-existing config-doc failure inherited from fork
-- **Lines**: +132 net across 8 files (7 source, 1 test)
+Full changelog: [`docs/CHANGELOG-SolarFlare.md`](docs/CHANGELOG-SolarFlare.md)
 
 ---
 
